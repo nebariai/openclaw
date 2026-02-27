@@ -5,7 +5,6 @@ import { Readable } from "stream";
 import { listEnabledFeishuAccounts } from "./accounts.js";
 import { createFeishuClient } from "./client.js";
 import { FeishuDocSchema, type FeishuDocParams } from "./doc-schema.js";
-import { getFeishuRuntime } from "./runtime.js";
 import { resolveToolsConfig } from "./tools-config.js";
 
 // ============ Helpers ============
@@ -176,9 +175,12 @@ async function uploadImageToDocx(
   return fileToken;
 }
 
-async function downloadImage(url: string, maxBytes: number): Promise<Buffer> {
-  const fetched = await getFeishuRuntime().channel.media.fetchRemoteMedia({ url, maxBytes });
-  return fetched.buffer;
+async function downloadImage(url: string): Promise<Buffer> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to download image: ${response.status} ${response.statusText}`);
+  }
+  return Buffer.from(await response.arrayBuffer());
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- SDK block types */
@@ -187,7 +189,6 @@ async function processImages(
   docToken: string,
   markdown: string,
   insertedBlocks: any[],
-  maxBytes: number,
 ): Promise<number> {
   /* eslint-enable @typescript-eslint/no-explicit-any */
   const imageUrls = extractImageUrls(markdown);
@@ -203,7 +204,7 @@ async function processImages(
     const blockId = imageBlocks[i].block_id;
 
     try {
-      const buffer = await downloadImage(url, maxBytes);
+      const buffer = await downloadImage(url);
       const urlPath = new URL(url).pathname;
       const fileName = urlPath.split("/").pop() || `image_${i}.png`;
       const fileToken = await uploadImageToDocx(client, blockId, buffer, fileName);
@@ -283,7 +284,7 @@ async function createDoc(client: Lark.Client, title: string, folderToken?: strin
   };
 }
 
-async function writeDoc(client: Lark.Client, docToken: string, markdown: string, maxBytes: number) {
+async function writeDoc(client: Lark.Client, docToken: string, markdown: string) {
   const deleted = await clearDocumentContent(client, docToken);
 
   const { blocks, firstLevelBlockIds } = await convertMarkdown(client, markdown);
@@ -293,7 +294,7 @@ async function writeDoc(client: Lark.Client, docToken: string, markdown: string,
   const sortedBlocks = sortBlocksByFirstLevel(blocks, firstLevelBlockIds);
 
   const { children: inserted, skipped } = await insertBlocks(client, docToken, sortedBlocks);
-  const imagesProcessed = await processImages(client, docToken, markdown, inserted, maxBytes);
+  const imagesProcessed = await processImages(client, docToken, markdown, inserted);
 
   return {
     success: true,
@@ -306,12 +307,7 @@ async function writeDoc(client: Lark.Client, docToken: string, markdown: string,
   };
 }
 
-async function appendDoc(
-  client: Lark.Client,
-  docToken: string,
-  markdown: string,
-  maxBytes: number,
-) {
+async function appendDoc(client: Lark.Client, docToken: string, markdown: string) {
   const { blocks, firstLevelBlockIds } = await convertMarkdown(client, markdown);
   if (blocks.length === 0) {
     throw new Error("Content is empty");
@@ -319,7 +315,7 @@ async function appendDoc(
   const sortedBlocks = sortBlocksByFirstLevel(blocks, firstLevelBlockIds);
 
   const { children: inserted, skipped } = await insertBlocks(client, docToken, sortedBlocks);
-  const imagesProcessed = await processImages(client, docToken, markdown, inserted, maxBytes);
+  const imagesProcessed = await processImages(client, docToken, markdown, inserted);
 
   return {
     success: true,
@@ -457,7 +453,6 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
   // Use first account's config for tools configuration
   const firstAccount = accounts[0];
   const toolsCfg = resolveToolsConfig(firstAccount.config.tools);
-  const mediaMaxBytes = (firstAccount.config?.mediaMaxMb ?? 30) * 1024 * 1024;
 
   // Helper to get client for the default account
   const getClient = () => createFeishuClient(firstAccount);
@@ -480,9 +475,9 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
               case "read":
                 return json(await readDoc(client, p.doc_token));
               case "write":
-                return json(await writeDoc(client, p.doc_token, p.content, mediaMaxBytes));
+                return json(await writeDoc(client, p.doc_token, p.content));
               case "append":
-                return json(await appendDoc(client, p.doc_token, p.content, mediaMaxBytes));
+                return json(await appendDoc(client, p.doc_token, p.content));
               case "create":
                 return json(await createDoc(client, p.title, p.folder_token));
               case "list_blocks":
