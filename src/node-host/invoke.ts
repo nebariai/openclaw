@@ -31,7 +31,6 @@ import {
   type ExecHostResponse,
   type ExecHostRunResult,
 } from "../infra/exec-host.js";
-import { validateSystemRunCommandConsistency } from "../infra/system-run-command.js";
 import { runBrowserProxyCommand } from "./invoke-browser.js";
 
 const OUTPUT_CAP = 200_000;
@@ -173,6 +172,22 @@ function sanitizeEnv(
     merged[key] = value;
   }
   return merged;
+}
+
+function formatCommand(argv: string[]): string {
+  return argv
+    .map((arg) => {
+      const trimmed = arg.trim();
+      if (!trimmed) {
+        return '""';
+      }
+      const needsQuotes = /\s|"/.test(trimmed);
+      if (!needsQuotes) {
+        return trimmed;
+      }
+      return `"${trimmed.replace(/"/g, '\\"')}"`;
+    })
+    .join(" ");
 }
 
 function truncateOutput(raw: string, maxChars: number): { text: string; truncated: boolean } {
@@ -499,20 +514,7 @@ export async function handleInvoke(
 
   const argv = params.command.map((item) => String(item));
   const rawCommand = typeof params.rawCommand === "string" ? params.rawCommand.trim() : "";
-  const consistency = validateSystemRunCommandConsistency({
-    argv,
-    rawCommand: rawCommand || null,
-  });
-  if (!consistency.ok) {
-    await sendInvokeResult(client, frame, {
-      ok: false,
-      error: { code: "INVALID_REQUEST", message: consistency.message },
-    });
-    return;
-  }
-
-  const shellCommand = consistency.shellCommand;
-  const cmdText = consistency.cmdText;
+  const cmdText = rawCommand || formatCommand(argv);
   const agentId = params.agentId?.trim() || undefined;
   const cfg = loadConfig();
   const agentExec = agentId ? resolveAgentConfig(cfg, agentId)?.tools?.exec : undefined;
@@ -534,9 +536,9 @@ export async function handleInvoke(
   let allowlistMatches: ExecAllowlistEntry[] = [];
   let allowlistSatisfied = false;
   let segments: ExecCommandSegment[] = [];
-  if (shellCommand) {
+  if (rawCommand) {
     const allowlistEval = evaluateShellAllowlist({
-      command: shellCommand,
+      command: rawCommand,
       allowlist: approvals.allowlist,
       safeBins,
       cwd: params.cwd ?? undefined,
@@ -567,7 +569,7 @@ export async function handleInvoke(
     segments = analysis.segments;
   }
   const isWindows = process.platform === "win32";
-  const cmdInvocation = shellCommand
+  const cmdInvocation = rawCommand
     ? isCmdExeInvocation(segments[0]?.argv ?? [])
     : isCmdExeInvocation(argv);
   if (security === "allowlist" && isWindows && cmdInvocation) {
@@ -583,7 +585,7 @@ export async function handleInvoke(
         : null;
     const execRequest: ExecHostRequest = {
       command: argv,
-      rawCommand: rawCommand || shellCommand || null,
+      rawCommand: rawCommand || null,
       cwd: params.cwd ?? null,
       env: params.env ?? null,
       timeoutMs: params.timeoutMs ?? null,
@@ -778,7 +780,7 @@ export async function handleInvoke(
     security === "allowlist" &&
     isWindows &&
     !approvedByAsk &&
-    shellCommand &&
+    rawCommand &&
     analysisOk &&
     allowlistSatisfied &&
     segments.length === 1 &&
