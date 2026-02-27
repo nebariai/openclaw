@@ -55,7 +55,8 @@ function resolveProvider(config: VoiceCallConfig): VoiceCallProvider {
           publicKey: config.telnyx?.publicKey,
         },
         {
-          skipVerification: config.skipSignatureVerification,
+          allowUnsignedWebhooks:
+            config.inboundPolicy === "open" || config.inboundPolicy === "disabled",
         },
       );
     case "twilio":
