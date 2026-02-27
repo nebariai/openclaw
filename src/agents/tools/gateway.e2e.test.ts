@@ -20,7 +20,7 @@ describe("gateway tool defaults", () => {
     expect(opts.url).toBeUndefined();
   });
 
-  it("accepts allowlisted gatewayUrl overrides (SSRF hardening)", async () => {
+  it("passes through explicit overrides", async () => {
     callGatewayMock.mockResolvedValueOnce({ ok: true });
     await callGatewayTool(
       "health",
