@@ -4,7 +4,6 @@ import os from "node:os";
 import path from "node:path";
 import { fetch as realFetch } from "undici";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_UPLOAD_DIR } from "./paths.js";
 
 let testPort = 0;
 let cdpBaseUrl = "";
@@ -414,31 +413,31 @@ describe("browser control server", () => {
     const base = await startServerAndBase();
 
     const upload = await postJson(`${base}/hooks/file-chooser`, {
-      paths: ["a.txt"],
+      paths: ["/tmp/a.txt"],
       timeoutMs: 1234,
     });
     expect(upload).toMatchObject({ ok: true });
     expect(pwMocks.armFileUploadViaPlaywright).toHaveBeenCalledWith({
       cdpUrl: cdpBaseUrl,
       targetId: "abcd1234",
-      paths: [path.join(DEFAULT_UPLOAD_DIR, "a.txt")],
+      paths: ["/tmp/a.txt"],
       timeoutMs: 1234,
     });
 
     const uploadWithRef = await postJson(`${base}/hooks/file-chooser`, {
-      paths: ["b.txt"],
+      paths: ["/tmp/b.txt"],
       ref: "e12",
     });
     expect(uploadWithRef).toMatchObject({ ok: true });
 
     const uploadWithInputRef = await postJson(`${base}/hooks/file-chooser`, {
-      paths: ["c.txt"],
+      paths: ["/tmp/c.txt"],
       inputRef: "e99",
     });
     expect(uploadWithInputRef).toMatchObject({ ok: true });
 
     const uploadWithElement = await postJson(`${base}/hooks/file-chooser`, {
-      paths: ["d.txt"],
+      paths: ["/tmp/d.txt"],
       element: "input[type=file]",
     });
     expect(uploadWithElement).toMatchObject({ ok: true });
