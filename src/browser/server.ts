@@ -5,7 +5,6 @@ import { loadConfig } from "../config/config.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { resolveBrowserConfig, resolveProfile } from "./config.js";
 import { ensureBrowserControlAuth, resolveBrowserControlAuth } from "./control-auth.js";
-import { browserMutationGuardMiddleware } from "./csrf.js";
 import { ensureChromeExtensionRelayServer } from "./extension-relay.js";
 import { isAuthorizedBrowserRequest } from "./http-auth.js";
 import { isPwAiLoaded } from "./pw-ai-state.js";
@@ -57,7 +56,6 @@ export async function startBrowserControlServerFromConfig(): Promise<BrowserServ
     next();
   });
   app.use(express.json({ limit: "1mb" }));
-  app.use(browserMutationGuardMiddleware());
 
   if (browserAuth.token || browserAuth.password) {
     app.use((req, res, next) => {
