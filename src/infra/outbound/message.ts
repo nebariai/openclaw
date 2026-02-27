@@ -102,15 +102,8 @@ export type MessagePollResult = {
 };
 
 function resolveGatewayOptions(opts?: MessageGatewayOptions) {
-  // Security: backend callers (tools/agents) must not accept user-controlled gateway URLs.
-  // Use config-derived gateway target only.
-  const url =
-    opts?.mode === GATEWAY_CLIENT_MODES.BACKEND ||
-    opts?.clientName === GATEWAY_CLIENT_NAMES.GATEWAY_CLIENT
-      ? undefined
-      : opts?.url;
   return {
-    url,
+    url: opts?.url,
     token: opts?.token,
     timeoutMs:
       typeof opts?.timeoutMs === "number" && Number.isFinite(opts.timeoutMs)
