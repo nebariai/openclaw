@@ -683,9 +683,7 @@ extension GeneralSettings {
                 host: host,
                 port: gateway.sshPort)
             self.state.remoteCliPath = gateway.cliPath ?? ""
-            OpenClawConfigFile.setRemoteGatewayUrl(
-                host: gateway.serviceHost ?? host,
-                port: gateway.servicePort ?? gateway.gatewayPort)
+            OpenClawConfigFile.setRemoteGatewayUrl(host: host, port: gateway.gatewayPort)
         }
     }
 }
